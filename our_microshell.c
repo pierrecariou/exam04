@@ -5,17 +5,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-int fd[100][2];
+int fd[20000][2];
 int count;
-
-void	close_all_fds()
-{
-	int i = 0;
-	while (i < 100) {
-		close(fd[i][0]);
-		close(fd[i++][1]);
-	}
-}
 
 int		ft_strlen(char *str)
 {
@@ -35,7 +26,6 @@ void	print(char *str, char *str1)
 void	error()
 {
 	write(2, "error: fatal\n", 13);
-	close_all_fds();
 	exit(1);
 }
 
@@ -72,12 +62,15 @@ void	exec(int l, int l_b, char **cmds, char **envp)
 	if (l_b) {
 		if (dup2(fd[count - 1][0], STDIN_FILENO) == -1)
 			error();
+		close(fd[count - 1][0]);
+		close(fd[count - 1][1]);
 	}
 	if (l) {
 		if (dup2(fd[count][1], STDOUT_FILENO) == -1)
 			error();
+		close(fd[count][0]);
+		close(fd[count][1]);
 	}
-	close_all_fds();
 	execve(cmds[0] , cmds, envp);
 	print("error: cannot execute ", cmds[0]);
 }
@@ -86,6 +79,11 @@ void	exec_cmds(char **cmds, char **envp, char *limit, char *limit_b)
 {
 	int l = (limit && !strcmp(limit, "|")) ? 1 : 0;
 	int l_b = (limit_b && !strcmp(limit_b, "|")) ? 1 : 0;
+
+	if (l) {
+		if (pipe(fd[count]) == -1)
+			error();
+	}
 	pid_t  pid = fork();
 
 	if (pid == -1)
@@ -106,7 +104,7 @@ void	exec_cmds(char **cmds, char **envp, char *limit, char *limit_b)
 void	exec_cd(char **cmds, int count)
 {
 	if (count != 2)
-		print("error: cd: bad arguments", NULL);
+		print("error: cd: bad arguments", "");
 	else if (chdir(cmds[1]) != 0)
 		print("error: cd: cannot change ", cmds[1]);
 }
@@ -144,12 +142,6 @@ int		main(int argc, char **argv, char **envp)
 	if (argc == 1)
 		return (1);
 	count = 0;
-	int i = 0;
-	while (i < 100) {
-		if (pipe(fd[i++]) == -1)
-			error();
-	}
 	read_cmds(argv, 1, envp);
-	close_all_fds();
 	return (0);
 }
